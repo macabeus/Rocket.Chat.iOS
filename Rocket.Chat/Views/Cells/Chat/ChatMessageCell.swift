@@ -13,17 +13,12 @@ protocol ChatMessageCellProtocol: ChatMessageURLViewProtocol, ChatMessageVideoVi
     func handleLongPressMessageCell(_ message: Message, view: UIView, recognizer: UIGestureRecognizer)
 }
 
-fileprivate enum Regex: String {
-    case hashtag = "(?<!\\S)#[\\p{L}0-9_]+"
-}
-
 final class ChatMessageCell: UICollectionViewCell {
 
     static let minimumHeight = CGFloat(55)
     static let identifier = "ChatMessageCell"
 
     weak var longPressGesture: UILongPressGestureRecognizer?
-    weak var labelTextTapGesture: UITapGestureRecognizer?
     weak var delegate: ChatMessageCellProtocol?
     var rectsHighlight: [CGRect: String]?
     var message: Message! {
@@ -129,13 +124,6 @@ final class ChatMessageCell: UICollectionViewCell {
             self.addGestureRecognizer(gesture)
             self.longPressGesture = gesture
         }
-
-        if self.labelTextTapGesture == nil {
-            let gesture = UITapGestureRecognizer(target: self, action: #selector(handleHighlightsTapGestureCell(recognizer:)))
-            gesture.delegate = self
-            self.labelText.addGestureRecognizer(gesture)
-            self.labelTextTapGesture = gesture
-        }
     }
 
     func insertURLs() -> CGFloat {
@@ -237,39 +225,6 @@ final class ChatMessageCell: UICollectionViewCell {
         }
     }
 
-    fileprivate func setHighlights() {
-        let attributes = NSMutableAttributedString(attributedString: labelText.attributedText)
-        let fontAttribute = [NSAttributedStringKey.foregroundColor: UIColor.link]
-
-        for range in labelText.text.matches(of: Regex.hashtag.rawValue) {
-            let _range = NSRange(range, in: labelText.text)
-
-            attributes.addAttributes(fontAttribute, range: _range)
-        }
-
-        labelText.attributedText = attributes
-    }
-
-    fileprivate func fillRectHighlights() {
-        rectsHighlight = [:]
-
-        for range in labelText.text.matches(of: Regex.hashtag.rawValue) {
-            let startOffset = labelText.text.distance(from: labelText.text.startIndex, to: range.lowerBound)
-            let rangeLength = labelText.text.distance(from: range.lowerBound, to: range.upperBound)
-
-            guard
-                let start = labelText.position(from: labelText.beginningOfDocument, offset: startOffset),
-                let end = labelText.position(from: start, offset: rangeLength),
-
-                let textRange = labelText.textRange(from: start, to: end) else {
-                continue
-            }
-
-            let rect = labelText.firstRect(for: textRange)
-            rectsHighlight?[rect] = labelText.text(in: textRange)
-        }
-    }
-
     fileprivate func updateMessage() {
         guard delegate != nil else { return }
 
@@ -278,31 +233,13 @@ final class ChatMessageCell: UICollectionViewCell {
         }
 
         updateMessageContent()
-        setHighlights()
 
         insertGesturesIfNeeded()
         insertAttachments()
     }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-
-        fillRectHighlights()
-    }
-
     @objc func handleLongPressMessageCell(recognizer: UIGestureRecognizer) {
         delegate?.handleLongPressMessageCell(message, view: contentView, recognizer: recognizer)
-    }
-
-    @objc func handleHighlightsTapGestureCell(recognizer: UIGestureRecognizer) {
-        guard let recognizer = recognizer as? UITapGestureRecognizer else { return }
-
-        let point = recognizer.location(in: labelText)
-
-        guard let first = rectsHighlight?.first(where: { $0.key.contains(point) }) else { return }
-
-        print(first)
-        // TODO
     }
 }
 
@@ -323,25 +260,5 @@ extension ChatMessageCell: UITextViewDelegate {
         }
 
         return true
-    }
-}
-
-extension CGRect: Hashable {
-    public var hashValue: Int {
-        return NSStringFromCGRect(self).hashValue
-    }
-}
-
-extension String {
-    fileprivate func matches(of regex: String) -> [Range<String.Index>] {
-        var ranges: [Range<String.Index>] = []
-        var start = self.startIndex
-        while let range = self.range(of: regex, options: .regularExpression, range: start..<self.endIndex) {
-
-            ranges.append(range)
-            start = range.upperBound
-        }
-
-        return ranges
     }
 }

@@ -8,12 +8,55 @@
 
 import Foundation
 
+private enum Regex: String {
+    case hashtag = "(?<!\\S)#[\\p{L}0-9_]+"
+}
+
 class HighlightTextView: UITextView {
+
+    weak var labelTextTapGesture: UITapGestureRecognizer?
+    var rectsHighlight: [CGRect: String]?
 
     override var attributedText: NSAttributedString! {
         didSet {
             setNeedsDisplay()
         }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+
+        fillRectHighlights()
+        insertGesturesIfNeeded()
+    }
+
+    fileprivate func fillRectHighlights() {
+        rectsHighlight = [:]
+
+        for range in text.matches(of: Regex.hashtag.rawValue) {
+            let startOffset = text.distance(from: text.startIndex, to: range.lowerBound)
+            let rangeLength = text.distance(from: range.lowerBound, to: range.upperBound)
+
+            guard
+                let start = position(from: beginningOfDocument, offset: startOffset),
+                let end = position(from: start, offset: rangeLength),
+
+                let textRange = textRange(from: start, to: end) else {
+                    continue
+            }
+
+            let rect = firstRect(for: textRange)
+            rectsHighlight?[rect] = text(in: textRange)
+        }
+    }
+
+    func insertGesturesIfNeeded() {
+        if labelTextTapGesture == nil {
+            let gesture = UITapGestureRecognizer(target: self, action: #selector(handleHighlightsTapGestureCell(recognizer:)))
+            gesture.delegate = self
+            addGestureRecognizer(gesture)
+            labelTextTapGesture = gesture
+         }
     }
 
     override func draw(_ rect: CGRect) {
@@ -78,5 +121,45 @@ class HighlightTextView: UITextView {
                 }
             }
         }
+    }
+
+    @objc func handleHighlightsTapGestureCell(recognizer: UIGestureRecognizer) {
+        guard let recognizer = recognizer as? UITapGestureRecognizer else { return }
+
+        let point = recognizer.location(in: self)
+
+        guard let first = rectsHighlight?.first(where: { $0.key.contains(point) }) else { return }
+
+        print(first)
+
+        // TODO
+    }
+}
+
+extension HighlightTextView: UIGestureRecognizerDelegate {
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return false
+    }
+
+}
+
+extension CGRect: Hashable {
+    public var hashValue: Int {
+        return NSStringFromCGRect(self).hashValue
+    }
+}
+
+extension String {
+    fileprivate func matches(of regex: String) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var start = self.startIndex
+        while let range = self.range(of: regex, options: .regularExpression, range: start..<self.endIndex) {
+
+            ranges.append(range)
+            start = range.upperBound
+        }
+
+        return ranges
     }
 }
