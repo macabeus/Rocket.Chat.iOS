@@ -51,7 +51,7 @@ final class ChatMessageCell: UICollectionViewCell {
 
     @IBOutlet weak var labelDate: UILabel!
     @IBOutlet weak var labelUsername: UILabel!
-    @IBOutlet weak var labelText: UITextView! {
+    @IBOutlet weak var labelText: HighlightTextView! {
         didSet {
             labelText.textContainerInset = .zero
             labelText.delegate = self
